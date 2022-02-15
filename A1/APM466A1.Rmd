@@ -1,0 +1,653 @@
+---
+title: "MAT1856/APM466 Assignment 1"
+author: "Cameron Dietzel, Student #: 1003506191"
+date: "February 2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Fundamental Questions - 25 points
+
+1. (a) Governments prefer to issue bonds and not print money in order to limit inflation and not penalize savers/investers, as printing money immediately devalues it. 
+   (b) A situation where the yield curve might flatten in the long term is when individuals expect interest rates to increase, or inflation to decrease, in the future.
+   (c) Quantitative easing is defined to be when the central bank purchases longer term securities to increase money supply and encourage lending and investing activity. The fed has employed this by purchasing large quantities of debt securities during the COVID-19 pandemic in order to stimulate economic activity throughout this time. The fed mainly purchases mortgage-backed securities as they believed such flow of credit is crucial for the economic health of the broader economy. [3]
+
+```{r, include = FALSE}
+library(readxl)
+
+#Import Data
+
+bonds <- read_excel("APM466A1Data.xlsx", sheet = "Sheet2")
+bonds <- as.data.frame(bonds)
+
+```
+
+```{r, include = FALSE}
+### Some Definitions
+
+date = c(10,11,12,13,14,17,18,19,20,21)
+
+```
+
+
+
+2. The following bonds have been selected for the analysis: CAN 0.50 Mar 22, CAN 0.25 Aug 22, CAN 1.75 Mar 23, CAN 0.25 Aug 23, CAN 2.25 Mar 24, CAN 1.50 Sep 24, CAN 1.25 Mar 25, CAN 0.50 Sep 25, CAN 0.25 Mar 26, CAN 1.00 Sep 26, CAN 1.25 Mar 27. These bonds are chosen because their respective maturity dates are approximately 6 months apart from one another. As coupon payments are made semi-annually, this selection ensures the most accuracy to perform the bootstrapping process to calculate the spot rate in question 4, as well as for plotting the yield curves. The maturity dates for the first 10 bonds range from 0.25 years to 4.75 years from today, and so an 11th bond is chosen with a maturity date of 5.25 years from now. This is to ensure there is a 5 year period available to calculate a full 5-year yield curve and spot curve. Furthermore, each bond is also chosen with an issue date within approximately the last 5 years.  Finally, the bonds with similar coupon payments are also chosen. This is for consistency, as they will likely have similar price points and therefore a more accurate comparison of the yields can be made.
+
+3. Principal component analysis tells us how high dimensional data is distributed. Given the covariance matrix of stochastic processes, the eigenvalues represent the magnitude of the variance of the stochastic curves in the direction of each eigenvalue's respective eigenvector. These eigenvectors are what create the principle components of the stochastic processes. As the eigenvalues are ordered from greatest to least, the principal components are then ordered based on their significance. For example, this means that the eigenvector with the i\textsuperscript{th} largest eigenvalue tells us what direction accounts for the i\textsuperscript{th} most variance in the stochastic processes, where the i\textsuperscript{th} eigenvalue is the magnitude of that variance. [2]     
+
+### Emperical Questions - 75 points
+
+4. (a) Since the CAN 0.25 Aug 22 and CAN 0.25 Aug 23 bonds do not mature at the precise 6 month intervals, linear interpolation must be used [3]. The following equation is used to determine the yield and spot rate for both bonds (i = 2,4). $r_i$ and $t_i$ represent the yield/spot rate and the time to maturity of the ith bond, respectively.
+$$r_i = r_{i-1} + (t_i - t_{i-1}) \cdot \frac{r_{i+1} - r_{i-1}}{t_{i+1} - t_{i-1}}$$
+
+```{r, include = FALSE}
+cleanprices = data.frame(bonds$PJan10, bonds$PJan11, bonds$PJan12, bonds$PJan13, bonds$PJan14, bonds$PJan17, bonds$PJan18, bonds$PJan19, bonds$PJan20, bonds$PJan21)
+
+k = rep(1:11)
+dirtyprices = data.frame(k,k,k,k,k,k,k,k,k,k)
+
+## Dirty prices for the first bond
+
+for (i in 1:11) {
+  for (j in 1:10) {
+      dirtyprices[i,j] = cleanprices[i,j] + (bonds$MonthsSinceLastCoupon[i]*bonds$Coupon[i]*(1/2)*100*30 + date[j])/365
+    }
+  }  
+```
+
+```{r, include = FALSE}
+
+### good for now
+
+y = rep(1:11)
+
+YTMnew = data.frame(y,y,y,y,y,y,y,y,y,y)
+
+#bond maturing in 0.5 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[1]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[1]))/12
+  f <- function(x) {
+    - dirtyprices[1,i] + coupon*exp(-x*(maturity)) + face*exp(-x*(maturity))
+  }
+  YTMnew[1,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+# bond maturing in 1 year
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[2]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[2]))/12
+  f <- function(x) {
+    - dirtyprices[2,i] + 
+      coupon*exp(-x*(maturity)) +
+      coupon*exp(-x*(maturity+0.5))+
+      face*exp(-x*(maturity + 0.5))
+  }
+  YTMnew[2,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 1.5 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[3]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[3]))/12
+  f <- function(x) {
+    - dirtyprices[3,i] + 
+      coupon*exp(-x*(maturity)) +
+      coupon*exp(-x*(maturity+0.5))+
+      coupon*exp(-x*(maturity+1.0))+
+      face*exp(-x*(maturity + 1.0))
+  }
+  YTMnew[3,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 2.0 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[4]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[4]))/12
+  f <- function(x) {
+  -dirtyprices[4,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      face*exp(-x*(maturity + 1.5))
+  }
+  YTMnew[4,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+    
+
+#bond maturing in 2.5 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[5]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[5]))/12
+  f <- function(x) {
+  -dirtyprices[5,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      face*exp(-x*(maturity + 2.0))
+  }
+  YTMnew[5,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 3.0 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[6]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[6]))/12
+  f <- function(x) {
+  -dirtyprices[6,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      coupon*exp(-x*(maturity +2.5)) +
+      face*exp(-x*(maturity + 2.5))
+  }
+  YTMnew[6,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+
+#bond maturing in 3.5 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[7]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[7]))/12
+  f <- function(x) {
+  -dirtyprices[7,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      coupon*exp(-x*(maturity +2.5)) +
+      coupon*exp(-x*(maturity +3.0)) +
+      face*exp(-x*(maturity + 3.0))
+  }
+  YTMnew[7,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 4.0 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[8]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[8]))/12
+  f <- function(x) {
+  -dirtyprices[8,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      coupon*exp(-x*(maturity +2.5)) +
+      coupon*exp(-x*(maturity +3.0)) +
+      coupon*exp(-x*(maturity +3.5)) +
+      face*exp(-x*(maturity + 3.5))
+  }
+  YTMnew[8,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 4.5 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[9]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[9]))/12
+  f <- function(x) {
+  -dirtyprices[9,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      coupon*exp(-x*(maturity +2.5)) +
+      coupon*exp(-x*(maturity +3.0)) +
+      coupon*exp(-x*(maturity +3.5)) +
+      coupon*exp(-x*(maturity +4.0)) +
+      face*exp(-x*(maturity + 4.0))
+  }
+  YTMnew[9,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 5.0 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[10]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[10]))/12
+  f <- function(x) {
+  -dirtyprices[10,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      coupon*exp(-x*(maturity +2.5)) +
+      coupon*exp(-x*(maturity +3.0)) +
+      coupon*exp(-x*(maturity +3.5)) +
+      coupon*exp(-x*(maturity +4.0)) +
+      coupon*exp(-x*(maturity +4.5)) +
+      face*exp(-x*(maturity + 4.5))
+  }
+  YTMnew[10,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+#bond maturing in 5.5 years
+
+for (i in 1:10) {
+  coupon=bonds$Coupon[11]*(100/2)
+  face=100
+  maturity = (6-(bonds$MonthsSinceLastCoupon[11]))/12
+  f <- function(x) {
+  -dirtyprices[11,i] + coupon*exp(-x*(maturity)) + 
+      coupon*exp(-x*(maturity +0.5)) +
+      coupon*exp(-x*(maturity +1.0)) +
+      coupon*exp(-x*(maturity +1.5)) +
+      coupon*exp(-x*(maturity +2.0)) +
+      coupon*exp(-x*(maturity +2.5)) +
+      coupon*exp(-x*(maturity +3.0)) +
+      coupon*exp(-x*(maturity +3.5)) +
+      coupon*exp(-x*(maturity +4.0)) +
+      coupon*exp(-x*(maturity +4.5)) +
+      coupon*exp(-x*(maturity +5.0)) +
+      face*exp(-x*(maturity + 5.0))
+  }
+  YTMnew[11,i] = uniroot(f, interval = c(-100, 100))$root
+ 
+}
+
+
+
+# Change column names for the YTM data set
+
+colnames(YTMnew) = c("YTM Jan 10", "YTM Jan 11", "YTM Jan 12", "YTM Jan 13", "YTM Jan 14", 
+                     "YTM Jan 17", "YTM Jan 18", "YTM Jan 19", "YTM Jan 20", "YTM Jan 21")
+
+```
+
+
+```{r, include = FALSE}
+
+## Interpolate to calculate the appropriate 1 and 2 year yields for plotting
+YTMfinal <- YTMnew
+
+for (i in 1:10) {
+  
+  YTMfinal[2,i] = YTMfinal[1,i] +((YTMfinal[3,i] - YTMfinal[1,i])/(1.5-0.5))*(1-0.5)
+  YTMfinal[4,i] = YTMfinal[3,i] +((YTMfinal[5,i] - YTMfinal[3,1])/(2.5-1.5))*(2-1.5)
+  
+}
+```
+
+
+
+```{r, echo = FALSE, fig.height = 2.5}
+### YTM Plot
+
+library(ggplot2)
+
+Maturity = factor(c(0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25, 4.75, 5.25))
+
+colorsytm = c("Jan 10" = "red", "Jan 11" = "orange", "Jan 12" = "navyblue", 
+              "Jan 13" = "darkgreen", "Jan 14" = "yellow", "Jan 17" = "purple",
+              "Jan 18" = "pink", "Jan 19" = "steelblue", "Jan 20" = "brown",
+              "Jan 21" = "limegreen")
+
+ggplot(YTMfinal, aes(x = Maturity)) +
+    geom_line(aes(y = `YTM Jan 10`, group = 1, color = "Jan 10")) +
+    geom_line(aes(y = `YTM Jan 11`, group = 1, color = "Jan 11")) +
+    geom_line(aes(y = `YTM Jan 12`, group = 1, color = "Jan 12")) +
+    geom_line(aes(y = `YTM Jan 13`, group = 1, color = "Jan 13")) +
+    geom_line(aes(y = `YTM Jan 14`, group = 1, color = "Jan 14")) +
+    geom_line(aes(y = `YTM Jan 17`, group = 1, color = "Jan 17")) +
+    geom_line(aes(y = `YTM Jan 18`, group = 1, color = "Jan 18")) +
+    geom_line(aes(y = `YTM Jan 19`, group = 1, color = "Jan 19")) +
+    geom_line(aes(y = `YTM Jan 20`, group = 1, color = "Jan 20")) +
+    geom_line(aes(y = `YTM Jan 21`, group = 1, color = "Jan 21")) +
+    labs(x = "Time to Maturity (Years)",
+         y = "Yield to Maturity",
+         color = "Date",
+         title = "Yield to Maturity Plot") +
+    scale_color_manual(values = colorsytm) +
+  guides(color = guide_legend(override.aes = list(size = 0.5))) +
+  theme(legend.key.size = unit(0.1, 'cm'), 
+        legend.key.height = unit(0.1, 'cm'),
+        legend.key.width = unit(0.5, 'cm'), 
+        legend.title = element_text(size=8), 
+        legend.text = element_text(size=8),
+        axis.title.x = element_text(size=8),
+        axis.title.y = element_text(size=8),
+        title = element_text(size=8)) 
+```
+
+
+>(b) **Spot Rate Calculation Pseudo-code:** $\bf{DP_i}$ = dirty price of the i\textsuperscript{th} bond. $\bf{T_i}$ = time to maturity for the i\textsuperscript{th} bond. $\bf{c_i}$ is the coupon payment of the i\textsuperscript{th} bond multiplied by (100/2). $\bf{N}$ = 100. $\bf{m_i}$ = (6 - (months since the last coupon payment))/12, for the i\textsuperscript{th} bond
+
+1. First, calculate the spot rate $r_1$ for CAN 0.50 Mar 22, which matures in less than 6 months and therefore has no coupon payments.
+This will be mean solving the following formula:
+$$ r_1(T_1) = \frac{-log(DP_1/N)}{T_1}$$ 
+
+2. Now the spot rates $r_i$ for $i \in [2,10]$ can be calculated using a bootstrap process and assuming continuous compounding.
+      i) for each of the k remaining coupon payments, loops through and calculate the present value of the k-1 payments prior to the final payment of the last coupon with the notional. Use the respective discount rate calculated in prior bootstrap steps: $$PV_{coupons} = \sum\limits_{j=2}^{i-1} \frac{c_i}{2}e^{-r_j \cdot (m_i +0.5 \cdot j)}$$
+      iv) Finally, use the present value of the k-1 coupons to solve for the current spot rate. That is, solve the following formula for $r_i$:
+$$DP_i =  PV_{coupons} + (100 +c_i) \cdot e^{-r_i \cdot (m_i+0.5\cdot i)}$$
+
+```{r, include = FALSE}
+### GOOD ###
+
+#calculate the spot rate for the bond maturing in less than 6 months
+
+a = rep(1:11)
+rspot = data.frame(a,a,a,a,a,a,a,a,a,a)
+
+for (i in 1:10) {
+  p=dirtyprices[1,i]
+  coupon=bonds$Coupon[1]*(100/2)
+  face=100
+  maturityinYears= (bonds$MonthstoMaturity[1]/12)
+  #Formula
+  rspot[1,i]=-(log(p/(coupon+face)))/(maturityinYears)
+  }  
+
+
+#calculate the rest of the spot rates
+
+for (i in 2:11) {
+  
+  for (j in 1:10) {
+    #set price, coupon, maturity notation
+    price = dirtyprices[i,j]
+    coupon = bonds$Coupon[i]*100/2
+    PVallcoupons = 0
+    maturity = bonds$MonthstoMaturity[i]/12
+    coupon_times = seq((6-bonds$MonthsSinceLastCoupon[i])/12, (bonds$MonthstoMaturity[i]/12) -1/2, 1/2)
+    
+    #find the present value of the remaining coupon payments
+    for (k in (1:length(coupon_times))) 
+      {
+        PVallcoupons = PVallcoupons + coupon * exp(-rspot[k,j] * coupon_times[k])
+    }
+    
+   #final formula to calculate spot rate
+    rspot[i,j] = -(log((price - PVallcoupons)/(coupon+face)))/
+      (maturity)
+  
+  }
+  
+}
+
+# Change column names for the spot rate data set
+
+colnames(rspot) = c("Spot Rate Jan 10", "Spot Rate Jan 11", "Spot Rate Jan 12", "Spot Rate Jan 13", "Spot Rate Jan 14", 
+                     "Spot Rate Jan 17", "Spot Rate Jan 18", "Spot Rate Jan 19", "Spot Rate Jan 20", "Spot Rate Jan 21")
+
+
+
+```
+
+
+```{r, include = FALSE}
+
+## Interpolate to calculate the appropriate 1 and 2 year spot rates for plotting
+rspotfinal <- rspot
+
+for (i in 1:10) {
+  
+  rspotfinal[2,i] = rspotfinal[1,i] +((rspotfinal[3,i] - rspotfinal[1,i])/(1.5-0.5))*(1-0.5)
+  rspotfinal[4,i] = rspotfinal[3,i] +((rspotfinal[5,i] - rspotfinal[3,1])/(2.5-1.5))*(2-1.5)
+  
+}
+```
+
+
+
+```{r, echo  = FALSE, fig.height = 2.5}
+### Spot Rate Plot
+
+library(ggplot2)
+
+Maturity = factor(c(0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25, 4.75, 5.25))
+
+colorsspot = c("Jan 10" = "red", "Jan 11" = "orange", "Jan 12" = "navyblue", 
+              "Jan 13" = "darkgreen", "Jan 14" = "yellow", "Jan 17" = "purple",
+              "Jan 18" = "pink", "Jan 19" = "steelblue", "Jan 20" = "brown",
+              "Jan 21" = "limegreen")
+
+ggplot(rspotfinal, aes(x = Maturity)) +
+    geom_line(aes(y = `Spot Rate Jan 10`, group = 1, color = "Jan 10")) +
+    geom_line(aes(y = `Spot Rate Jan 11`, group = 1, color = "Jan 11")) +
+    geom_line(aes(y = `Spot Rate Jan 12`, group = 1, color = "Jan 12")) +
+    geom_line(aes(y = `Spot Rate Jan 13`, group = 1, color = "Jan 13")) +
+    geom_line(aes(y = `Spot Rate Jan 14`, group = 1, color = "Jan 14")) +
+    geom_line(aes(y = `Spot Rate Jan 17`, group = 1, color = "Jan 17")) +
+    geom_line(aes(y = `Spot Rate Jan 18`, group = 1, color = "Jan 18")) +
+    geom_line(aes(y = `Spot Rate Jan 19`, group = 1, color = "Jan 19")) +
+    geom_line(aes(y = `Spot Rate Jan 20`, group = 1, color = "Jan 20")) +
+    geom_line(aes(y = `Spot Rate Jan 21`, group = 1, color = "Jan 21")) +
+    labs(x = "Time to Maturity (Years)",
+         y = "Spot Rate",
+         color = "Date",
+         title = "Spot Rate Plot") +
+    scale_color_manual(values = colorsspot) +
+  #theme(legend.position = "right", legend.text=element_text(size=6), legend.title=element_text(size=8),
+      #  plot.title = element_text(size = 10)) +
+   theme(legend.key.size = unit(0.1, 'cm'), 
+        legend.key.height = unit(0.1, 'cm'),
+        legend.key.width = unit(0.5, 'cm'), 
+        legend.title = element_text(size=8), 
+        legend.text = element_text(size=8),
+        axis.title.x = element_text(size=8),
+        axis.title.y = element_text(size=8),
+        title = element_text(size=8)) 
+```
+
+
+>(c) **Pseudo-code to calculate the forward rate:**
+1. Let $r_i$ be the ith spot rate, $i \in [2,3,4,5]$. The formula for the 1 year forward rate with with terms ranging from 2:5 (assuming continuous compounding for consistency) is:
+$$e^{r_i \cdot i} = e^{r_1}\cdot e^{f_{1,i-1} \cdot (i-1)}$$
+2. Solving for $f_{1,i-1}$:
+$$f_{1,i-1} = \frac{(r_i \cdot i - {r_1}\cdot 1)}{(i-1)}$$
+3. Loop through process 2 for each $i \in [2,3,4,5]$
+
+```{r, echo = FALSE}
+### Calculate Forward Curve
+
+q = rep(1:4)
+forward = data.frame(q,q,q,q,q,q,q,q,q,q) 
+
+time = c(0.5, 1, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
+
+ for (i in 1:4) {
+  for (j in 1:10) {
+    forward[i,j] = (rspot[2+2*i,j]*time[2*i+2] - rspot[2,j])/(time[2*i+2]-time[2])
+  }
+ }
+
+# Change column names for the forward rate data set
+
+colnames(forward) = c("Forward Rate Jan 10", "Forward Rate Jan 11", "Forward Rate Jan 12", "Forward Rate Jan 13", 
+                      "Forward Rate Jan 14",  "Forward Rate Jan 17", "Forward Rate Jan 18", "Forward Rate Jan 19", 
+                      "Forward Rate Jan 20", "Forward Rate Jan 21")
+
+```
+
+
+
+```{r, echo  = FALSE, fig.height = 2.5}
+### Forward Rate Plot
+
+library(ggplot2)
+
+Maturity = factor(c("1yr:1yr", "1yr:2yr", "1yr:3yr", "1yr:4yr"))
+
+colorsfwd = c("Jan 10" = "red", "Jan 11" = "orange", "Jan 12" = "navyblue", 
+              "Jan 13" = "darkgreen", "Jan 14" = "yellow", "Jan 17" = "purple",
+              "Jan 18" = "pink", "Jan 19" = "steelblue", "Jan 20" = "brown",
+              "Jan 21" = "limegreen")
+
+ggplot(forward, aes(x = Maturity)) +
+    geom_line(aes(y = `Forward Rate Jan 10`, group = 1, color = "Jan 10")) +
+    geom_line(aes(y = `Forward Rate Jan 11`, group = 1, color = "Jan 11")) +
+    geom_line(aes(y = `Forward Rate Jan 12`, group = 1, color = "Jan 12")) +
+    geom_line(aes(y = `Forward Rate Jan 13`, group = 1, color = "Jan 13")) +
+    geom_line(aes(y = `Forward Rate Jan 14`, group = 1, color = "Jan 14")) +
+    geom_line(aes(y = `Forward Rate Jan 17`, group = 1, color = "Jan 17")) +
+    geom_line(aes(y = `Forward Rate Jan 18`, group = 1, color = "Jan 18")) +
+    geom_line(aes(y = `Forward Rate Jan 19`, group = 1, color = "Jan 19")) +
+    geom_line(aes(y = `Forward Rate Jan 20`, group = 1, color = "Jan 20")) +
+    geom_line(aes(y = `Forward Rate Jan 21`, group = 1, color = "Jan 21")) +
+    labs(x = "Term",
+         y = "Forward Rate",
+         color = "Date",
+         title = "Forward Rate Plot") +
+    scale_color_manual(values = colorsfwd) +
+   theme(legend.key.size = unit(0.1, 'cm'), 
+        legend.key.height = unit(0.1, 'cm'),
+        legend.key.width = unit(0.5, 'cm'), 
+        legend.title = element_text(size=8), 
+        legend.text = element_text(size=8),
+        axis.title.x = element_text(size=8),
+        axis.title.y = element_text(size=8),
+        title = element_text(size=8))
+```
+
+
+5.
+
+```{r, include = FALSE}
+q = rep(1:9)
+
+logreturnyield = data.frame(q,q,q,q,q)
+
+for (i in 1:9) {
+  for (j in 1:5) {
+  
+  logreturnyield[i,j]=log(YTMnew[2*j,i+1]/YTMnew[2*j,i])
+  }
+}
+
+colnames(logreturnyield) = c("1 Year Yield Log Returns", "2 Year Yield Log Returns","3 Year Yield Log Returns","4 Year Yield Log Returns","5 Year Yield Log Returns")
+
+covlogreturnyield = cov(logreturnyield, logreturnyield)
+covlogreturnyield
+
+```
+
+
+```{r, include = FALSE}
+f = rep(1:9)
+
+logreturnforward= data.frame(f,f,f,f)
+
+for (i in 1:9) {
+  for (j in 1:4) {
+  
+  logreturnforward[i,j]=log(forward[j,i+1]/forward[j,i])
+  }
+}
+
+colnames(logreturnyield) = c("1 Year Yield Log Returns", "2 Year Yield Log Returns","3 Year Yield Log Returns","4 Year Yield Log Returns","5 Year Yield Log Returns")
+
+covlogreturnforward = cov(logreturnforward, logreturnforward)
+
+```
+
+
+```{r, echo=FALSE}
+t1 <- covlogreturnyield
+colnames(t1) <- c('$X_1$', '$X_2$', '$X_3$', '$X_4$', '$X_5$')
+rownames(t1) <- c('$X_1$', '$X_2$', '$X_3$', '$X_4$', '$X_5$')
+
+t2 <- covlogreturnforward
+colnames(t2) <- c('$X_1$', '$X_2$', '$X_3$', '$X_4$')
+rownames(t2) <- c('$X_1$', '$X_2$', '$X_3$', '$X_4$')
+
+knitr::kable(t1, caption = "Covariance Matrix for log returns of yield")
+knitr::kable(t2, caption = "Covariance matrix for log returns of the forward rate")
+```
+
+
+
+6.
+
+```{r, include = FALSE}
+### Calculate the eigenvalues and eigenvectors for the matrix of daily log returns of yield
+
+eigen_yield=eigen(covlogreturnyield,symmetric=TRUE)
+
+eigen_yield$values
+eigen_yield$vectors
+
+```
+
+```{r, include = FALSE}
+### Calculate the eigenvalues and eigenvectors for the forward rates
+
+eigen_forward=eigen(covlogreturnforward,symmetric=TRUE)
+
+```
+
+
+```{r, echo = FALSE}
+
+t3 <- data.frame(eigen_yield$values[1], eigen_yield$values[2], eigen_yield$values[3], eigen_yield$values[4], eigen_yield$values[5])
+rownames(t3) <- NULL
+colnames(t3) <- c("$\\lambda_1$", "$\\lambda_2$", "$\\lambda_3$", "$\\lambda_4$", "$\\lambda_5$")
+
+t4 <- data.frame(eigen_yield$vectors)
+rownames(t4) <- NULL
+colnames(t4) <- c("$v_1$", "$v_2$", "$v_3$", "$v_4$", "$v_5$")
+
+t5 <- data.frame(eigen_forward$values[1], eigen_yield$values[2], eigen_yield$values[3], eigen_yield$values[4])
+rownames(t5) <- NULL
+colnames(t5) <- c("$\\lambda_1$", "$\\lambda_2$", "$\\lambda_3$", "$\\lambda_4$")
+
+t6 <- data.frame(eigen_forward$vectors)
+rownames(t6) <- NULL
+colnames(t6) <- c("$v_1$", "$v_2$", "$v_3$", "$v_4$")
+
+knitr::kable(t3, caption = "Eigenvalues for covariance matrix for log returns of yield", escape = FALSE)
+knitr::kable(t4, caption = "Eigenvectors for covariance matrix for log returns of yield", escape = FALSE)
+knitr::kable(t5, caption = "Eigenvalues for covariance matrix for log returns of the forward rate", escape = FALSE)
+knitr::kable(t6, caption = "Eigenvectors for covariance matrix for log returns of the forward rate", escape = FALSE)
+```
+
+
+The eigenvector with the largest eigenvalue represents the direction of the largest variance of the data. Therefore $v_1$, which creates the direction of the first principal component, accounts for ($\frac{\lambda_1}{\Sigma \lambda_i}$)% of the total variance. $\lambda_1$ represents the magnitude of the variance in the direction $v_1$. For the yield curves, the first eigenvalue in table 3 captures roughly 86% of the variance. For the forward curves, the first eigenvalue for table 5 captures roughly 75% of the variance.
+
+### References and Link to Github Code
+
+1. [https://www.brookings.edu/research/fed-response-to-covid19/](https://www.brookings.edu/research/fed-response-to-covid19/)
+
+2. [https://builtin.com/data-science/step-step-explanation-principal-component-analysis](https://builtin.com/data-science/step-step-explanation-principal-component-analysis)
+
+3. [https://theeducationlife.com/interpolation-formula/](https://theeducationlife.com/interpolation-formula/)
+
+**Link to Github**
+
+[https://github.com/camdietzel/APM466/blob/main/A1](https://github.com/camdietzel/APM466/blob/main/A1)
+
+
+
